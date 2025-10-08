@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DOSALA CheckList — PWA + Firebase</title>
+<title>DOSALA CheckList — Sync + PWA</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00ffa2">
 <link rel="icon" href="icons/icon-192.png">
@@ -133,7 +133,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCLmdI43AvoIFeDkE9wuu1fjqS5p29INT4",
@@ -148,9 +148,9 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+  enableIndexedDbPersistence(db).catch(()=>{});
 
   const USER_EMAIL_MAP = { "Diego":"yosoyelpintor@gmail.com", "Chabeli":"ch.hernandezflores@gmail.com" };
-
   const $ = s => document.querySelector(s);
   const login = $('#login'), appScreen = $('#appScreen');
   const loginUser = $('#loginUser'), loginPass = $('#loginPass'), btnLogin = $('#btnLogin'), loginMsg = $('#loginMsg');
@@ -165,30 +165,64 @@
 
   let state = { items:[], archived:[], trash:[], history:[], elapsedText:"00:00" };
   const lsKey = uid => `dosala-state-${uid}`;
-  let saveTimer = null;
-  function scheduleSave(){ saveBadge.textContent='Guardando…'; if(saveTimer) clearTimeout(saveTimer); saveTimer=setTimeout(saveState, 700); }
+  let saveTimer = null, localLastWrite = 0, applyingRemote = false;
+  let unsubscribeUserDoc = null;
+
+  function mmss(ms){ const t=Math.max(0,Math.floor(ms/1000)); const m=String(Math.floor(t/60)).padStart(2,'0'); const s=String(t%60).padStart(2,'0'); return `${m}:${s}`; }
+
+  function captureStateFromDOM(){
+    return {
+      items: [...listEl.querySelectorAll('.item')].map(li=>({ text: li.querySelector('.item__label').textContent.trim(), done: li.classList.contains('completed') })),
+      archived: state.archived || [],
+      trash: state.trash || [],
+      history: state.history || [],
+      elapsedText: timeEl.textContent.trim(),
+      lastUpdated: Date.now()
+    };
+  }
+
+  function scheduleSave(){ if(applyingRemote) return; saveBadge.textContent='Guardando…'; if(saveTimer) clearTimeout(saveTimer); saveTimer=setTimeout(saveState, 700); }
   async function saveState(){
     const user = auth.currentUser; if(!user) return;
-    state.items = [...listEl.querySelectorAll('.item')].map(li=>({ text: li.querySelector('.item__label').textContent.trim(), done: li.classList.contains('completed') }));
-    state.elapsedText = timeEl.textContent.trim();
+    const data = captureStateFromDOM(); localLastWrite = data.lastUpdated;
     const ref = doc(db, 'users', user.uid);
-    await setDoc(ref, state, { merge:true });
-    localStorage.setItem(lsKey(user.uid), JSON.stringify(state));
+    try{ await setDoc(ref, data, { merge:true }); }catch(e){ console.log('save queued/offline?', e); }
+    localStorage.setItem(lsKey(user.uid), JSON.stringify({ ...state, ...data }));
     saveBadge.textContent='Guardado';
   }
-  async function loadState(){
+
+  async function loadStateOnce(){
     const user = auth.currentUser; if(!user) return;
     const ref = doc(db, 'users', user.uid);
     const snap = await getDoc(ref);
-    if(snap.exists()){ state = Object.assign(state, snap.data()); localStorage.setItem(lsKey(user.uid), JSON.stringify(state)); }
-    else{
-      const raw = localStorage.getItem(lsKey(user.uid)); if(raw){ try{ state=Object.assign(state, JSON.parse(raw)); }catch(e){} }
-      await setDoc(ref, state);
+    if(snap.exists()){
+      applyingRemote = true;
+      state = { ...state, ...snap.data() };
+      renderAll();
+      localStorage.setItem(lsKey(user.uid), JSON.stringify(state));
+      applyingRemote = false;
+    }else{
+      const raw = localStorage.getItem(lsKey(user.uid)); if(raw){ try{ state = { ...state, ...JSON.parse(raw) }; }catch{} }
+      await setDoc(ref, { ...state, lastUpdated: Date.now() }, { merge:true });
     }
-    renderAll(); saveBadge.textContent='Guardado';
   }
 
-  function mmss(ms){ const t=Math.max(0,Math.floor(ms/1000)); const m=String(Math.floor(t/60)).padStart(2,'0'); const s=String(t%60).padStart(2,'0'); return `${m}:${s}`; }
+  function subscribeUserDoc(){
+    const user = auth.currentUser; if(!user) return;
+    const ref = doc(db, 'users', user.uid);
+    if (unsubscribeUserDoc) unsubscribeUserDoc();
+    unsubscribeUserDoc = onSnapshot(ref, (snap)=>{
+      if(!snap.exists()) return;
+      const remote = snap.data();
+      if(remote.lastUpdated && remote.lastUpdated <= localLastWrite) return;
+      applyingRemote = true;
+      state = { ...state, ...remote };
+      renderAll();
+      localStorage.setItem(lsKey(user.uid), JSON.stringify(state));
+      applyingRemote = false;
+    });
+  }
+
   function updateProgress(){
     const total = listEl.querySelectorAll('.item').length || 0;
     const done = listEl.querySelectorAll('.item.completed').length;
@@ -213,7 +247,7 @@
     label.addEventListener('input', scheduleSave);
     return li;
   }
-  function renderList(){ listEl.innerHTML=''; state.items.forEach(it=>listEl.appendChild(createItem(it.text, it.done))); timeEl.textContent = state.elapsedText||'00:00'; updateProgress(); }
+  function renderList(){ listEl.innerHTML=''; (state.items||[]).forEach(it=>listEl.appendChild(createItem(it.text, it.done))); timeEl.textContent = state.elapsedText||'00:00'; updateProgress(); }
   function renderArchivedOnly(){
     archList.innerHTML=''; (state.archived||[]).forEach((txt,i)=>{ const li=document.createElement('li'); li.className='arch-item'; const span=document.createElement('div'); span.textContent=txt;
       const bR=document.createElement('button'); bR.className='ghost'; bR.textContent='Restaurar'; bR.addEventListener('click', ()=>{ state.items.push({text:txt,done:false}); state.archived.splice(i,1); renderList(); renderArchivedOnly(); });
@@ -230,7 +264,7 @@
   }
   function renderHistory(){
     const groups={}; (state.history||[]).forEach((s,idx)=>{ (groups[s.week] ||= []).push({s,idx}); });
-    historyGroups.innerHTML=''; const weeks=Object.keys(groups); $('#histCount').textContent=`(${state.history?.length||0})`;
+    historyGroups.innerHTML=''; const weeks=Object.keys(groups); document.querySelector('#histCount').textContent=`(${state.history?.length||0})`;
     weeks.forEach(wk=>{ const wrap=document.createElement('div'); const title=document.createElement('div'); title.style.marginTop='10px'; title.innerHTML=`<strong>Semana ${wk}</strong>`; wrap.appendChild(title);
       const ul=document.createElement('ul'); ul.className='list-reset';
       groups[wk].forEach(({s,idx})=>{ const li=document.createElement('li'); li.className='hist-item';
@@ -290,9 +324,11 @@
     try{
       const cred=await signInWithEmailAndPassword(auth, email, pass);
       if(!cred.user.displayName){ await updateProfile(cred.user, { displayName: name }); }
-      // Registrar SW tras login para permitir "Add to Home Screen"
       if ('serviceWorker' in navigator) { try { await navigator.serviceWorker.register('./service-worker.js'); } catch(e){} }
-    }catch(e){ loginMsg.textContent='Error de acceso: ' + (e?.message || e); }
+    }catch(e){
+      console.error(e);
+      loginMsg.textContent='Error de acceso: ' + (e?.code || e?.message || e);
+    }
   }
   btnLogin.addEventListener('click', doLogin);
   loginPass.addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
@@ -301,10 +337,12 @@
     if(user){
       usernameEl.textContent = user.displayName || (user.email?.split('@')[0]) || 'Usuario';
       login.style.display='none'; appScreen.style.display='';
-      await loadState();
+      await loadStateOnce();
+      subscribeUserDoc();
     }else{
       appScreen.style.display='none'; login.style.display='';
       loginPass.value=''; loginMsg.textContent='';
+      if (unsubscribeUserDoc){ unsubscribeUserDoc(); unsubscribeUserDoc=null; }
     }
   });
   document.querySelector('#btnLogout').addEventListener('click', async ()=>{ await signOut(auth); });
