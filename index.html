@@ -3,56 +3,54 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DOSALA CheckList — Dual Save</title>
+<title>DOSALA CheckList — Tags + Dual Save (Fix)</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00ffa2">
 <link rel="icon" href="icons/icon-192.png">
 <meta name="color-scheme" content="light dark">
 <style>
-  :root{ --bg1:#0a0f1c; --bg2:#101a2f; --neon:#00ffa2; --muted:#95a1bb; --text:#e7f0ff; --danger:#ff3b6e; --ok:#20ffc8; --card:#0b1730; --border:#1d2a4a; }
+  :root{ --bg1:#0a0f1c; --bg2:#101a2f; --neon:#00ffa2; --muted:#95a1bb; --text:#e7f0ff; --danger:#ff3b6e; --card:#0b1730; --border:#1d2a4a; }
   *{box-sizing:border-box} html,body{height:100%}
-  body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
     color:var(--text);
     background: radial-gradient(1200px 700px at 10% 10%, #111a30 0%, transparent 60%), radial-gradient(1200px 800px at 100% 0%, #0c1630 0%, transparent 60%), linear-gradient(180deg,var(--bg1),var(--bg2));
     padding:14px; }
-  .app{max-width:1100px; margin:0 auto}
+  .app{max-width:1150px; margin:0 auto}
   .card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px; box-shadow: 0 0 0 1px rgba(0,255,162,.08) inset, 0 16px 48px rgba(0,0,0,.45); }
   h1{margin:0; font-size:clamp(18px,4vw,28px)} .neon{color:var(--neon)} .today{color:var(--muted); font-size:14px; margin-top:4px}
   .chip{display:inline-flex; gap:6px; align-items:center; border:1px solid #244; background:var(--card); padding:8px 12px; border-radius:999px; font-size:14px; color:var(--muted)}
   input[type="text"], input[type="password"], input[type="number"], select{ appearance:none; background:var(--card); border:1px solid var(--border); color:var(--text); border-radius:12px; padding:10px 12px; outline:none; min-width:90px; font-size:16px; }
   button{ -webkit-tap-highlight-color: transparent; background: radial-gradient(80% 120% at 50% 0%, color-mix(in srgb, var(--neon), #0d2740 60%), #0b1e35 60%); color:var(--text); border:1px solid #245; border-radius:14px; padding:10px 12px; cursor:pointer; font-weight:700; min-height:42px; font-size:15px; letter-spacing:.01em; box-shadow: 0 0 12px rgba(0,255,162,.18) inset, 0 6px 14px rgba(0,0,0,.45); }
-  button.secondary{ background:linear-gradient(180deg, #132b4a, #0f2038);} button.danger{ background:linear-gradient(180deg, #3a1020, #270b18); border-color:#533;} button.ghost{ background:linear-gradient(180deg, #0b1730, #0a1428); border-color:#23314f;} button:disabled{opacity:.55; cursor:not-allowed}
+  button.secondary{ background:linear-gradient(180deg, #132b4a, #0f2038);} button.danger{ background:linear-gradient(180deg, #3a1020, #270b18);} button.ghost{ background:linear-gradient(180deg, #0b1730, #0a1428); border-color:#23314f;} button:disabled{opacity:.55; cursor:not-allowed}
   .controls{display:flex; flex-wrap:wrap; gap:8px; align-items:center} .status{display:flex; gap:12px; align-items:center; margin:12px 0 10px 0; flex-wrap:wrap;}
   .timer{ font-variant-numeric:tabular-nums; font-size:22px; padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:var(--card); }
-  .grid{display:grid; grid-template-columns: 1fr; gap:14px; margin-top:12px} @media (min-width:960px){ .grid{ grid-template-columns: 1.2fr .8fr; } }
+  .grid{display:grid; grid-template-columns: 1fr; gap:14px; margin-top:12px} @media (min-width:1080px){ .grid{ grid-template-columns: 1.15fr .85fr; } }
   .progressCard{display:grid; place-items:center; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px;} .pct{font-size:14px; color:var(--muted); margin-top:6px}
   ul#list{list-style:none; padding:0; margin:8px 0 0 0; display:grid; gap:10px}
   .item{display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; align-items:center; padding:12px; border:1px solid #203355; background:linear-gradient(180deg,#0b1730,#0a1428); border-radius:14px}
   .item__label[contenteditable="true"]{outline:none; border-bottom:1px dashed transparent; padding:2px 0; line-height:1.3; font-size:16px}
   .item__label[contenteditable="true"]:focus{border-bottom-color:#2a3e68}
+  .item .tag{font-size:11px; color:#b7ffe8; opacity:.9; margin-left:8px}
   .item.completed{background:linear-gradient(180deg,#0e1c35,#0c1730); opacity:.95} .item.completed .item__label{ text-decoration: line-through; color: #a1ffdd }
   .check{ width:26px; height:26px; min-width:26px; min-height:26px; border-radius:8px; border:1px solid #2a426e; display:grid; place-items:center; background:#0b1730; cursor:pointer;}
-  .check:after{content:""; width:12px; height:12px; border-radius:3px; background:var(--neon); opacity:0; transition:opacity .15s} .check.checked:after{opacity:1}
+  .check:after{content:""; width:12px; height:12px; border-radius:3px; background:#00ffa2; opacity:0; transition:opacity .15s} .check.checked:after{opacity:1}
   .del, .archive{ min-height:36px; padding:8px 10px; font-size:14px; }
   .muted{color:var(--muted); font-size:13px} .small{font-size:12px; color:var(--muted)}
   .list-reset{list-style:none; padding:0; margin:10px 0 0 0; display:grid; gap:8px}
   .arch-item{ display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center; padding:10px; border:1px dashed #3a4f7a; border-radius:12px; background:#102345; opacity:.9; }
   .trash-item{display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center; padding:10px; border:1px dashed #29406a; border-radius:12px; background:#0b1730}
   .hist-item{display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center; padding:10px; border:1px dashed #29406a; border-radius:12px; background:#0b1730}
-  .login-wrap{max-width:560px; margin:6vh auto} .login-header{display:flex; justify-content:space-between; align-items:flex-start; gap:12px} .login-grid{display:grid; gap:10px}
+  .tag-item{display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; padding:10px; border:1px dashed #386; border-radius:12px; background:#0b2036}
+  .login-wrap{max-width:560px; margin:6vh auto}
 </style>
 </head>
 <body>
 <div class="app">
 
   <section id="login" class="card login-wrap">
-    <div class="login-header">
-      <div>
-        <h1><span class="neon">DOSALA</span> CheckList</h1>
-        <div class="muted">Acceso con usuario y contraseña</div>
-      </div>
-    </div>
-    <div class="login-grid" style="margin-top:10px">
+    <h1><span class="neon">DOSALA</span> CheckList</h1>
+    <div class="muted">Acceso con usuario y contraseña</div>
+    <div style="display:grid; gap:10px; margin-top:10px">
       <label>Usuario
         <select id="loginUser" style="width:100%">
           <option value="Diego">Diego</option>
@@ -93,7 +91,7 @@
         <span id="saveBadge" class="small muted" style="margin-left:8px">Listo</span>
       </div>
       <div class="status">
-        <div>Tiempo: <span id="time" class="timer">00:00</span></div>
+        <div>Tiempo: <span id="time" class="timer">00:00:00</span></div>
         <div id="left" class="small">Sin ítems. Pulsa “Agregar ítem”.</div>
       </div>
     </section>
@@ -112,15 +110,19 @@
 
       <section class="card">
         <h3>Archivados pendientes <span id="archCount" class="small"></span></h3>
-        <p class="small">Mueve aquí lo que no resuelves hoy. Puedes restaurarlos o eliminarlos.</p>
         <ul id="archList" class="list-reset"></ul>
 
         <hr style="border-color:#1d2a4a; margin:14px 0" />
 
         <h3>Papelera <span id="trashCount" class="small"></span></h3>
-        <div class="small" style="margin:6px 0 8px">Puedes restaurar o eliminar definitivamente.</div>
         <button id="btnEmptyTrash" class="danger" style="margin-bottom:8px">Vaciar papelera</button>
         <ul id="trashList" class="list-reset"></ul>
+
+        <hr style="border-color:#1d2a4a; margin:14px 0" />
+
+        <h3>Tags guardados por usuario <span id="tagCount" class="small"></span></h3>
+        <p class="small">Cada ítem guarda un tag con la <strong>fecha de creación</strong>. Aquí verás tus tags y podrás agregarlos como ítems al dashboard.</p>
+        <ul id="tagsList" class="list-reset"></ul>
 
         <hr style="border-color:#1d2a4a; margin:14px 0" />
 
@@ -156,30 +158,49 @@
   const login = $('#login'), appScreen = $('#appScreen');
   const loginUser = $('#loginUser'), loginPass = $('#loginPass'), btnLogin = $('#btnLogin'), loginMsg = $('#loginMsg');
   const usernameEl = $('#username'), saveBadge = $('#saveBadge');
-  const listEl = $('#list'), timeEl = $('#time'), leftEl = $('#left'), ringProg = $('#ringProg'), pctEl = $('#pct'), todayEl = $('#today');
+  const listEl = $('#list'), timeEl = $('#time'), leftEl = $('#left'), ringProg = $('#ringProg'), pctEl = $('#pct');
   const archList = $('#archList'), archCount = $('#archCount'), trashList = $('#trashList'), trashCount = $('#trashCount'), historyGroups = $('#historyGroups');
+  const tagsList = $('#tagsList'), tagCount = $('#tagCount');
   const btnAdd = $('#btnAdd'), btnStart = $('#btnStart'), btnFinish = $('#btnFinish'), btnTxt = $('#btnTxt');
   const cdMinutesInput = $('#cdMinutes'), btnStartCD = $('#btnStartCD'), btnResetCD = $('#btnResetCD'), btnEmptyTrash = $('#btnEmptyTrash'), btnLogout = $('#btnLogout'), btnSaveNow = $('#btnSaveNow');
 
-  function setToday(){ const now=new Date(); const opts={weekday:'long',year:'numeric',month:'long',day:'numeric'}; todayEl.textContent = `Hoy: ${now.toLocaleDateString('es-ES', opts)}`; }
+  function setToday(){ const now=new Date(); const opts={weekday:'long',year:'numeric',month:'long',day:'numeric'}; document.querySelector('#today').textContent = `Hoy: ${now.toLocaleDateString('es-ES', opts)}`; }
   setToday();
 
   // ---- STATE
-  let state = { items:[], archived:[], trash:[], history:[], elapsedText:"00:00", lastUpdated: 0 };
+  let state = { items:[], archived:[], trash:[], history:[], userTags:[], elapsedText:"00:00:00", lastUpdated: 0 };
   const lsKey = uid => `dosala-state-${uid}`;
   let saveTimer = null;
 
   const nowTs = () => Date.now();
-  const mmss = (ms) => { const t=Math.max(0,Math.floor(ms/1000)); const m=String(Math.floor(t/60)).padStart(2,'0'); const s=String(t%60).padStart(2,'0'); return `${m}:${s}`; };
+  const two = (n) => String(n).padStart(2,'0');
+  const hms = (ms) => { const t = Math.max(0, Math.floor(ms/1000)); const h = two(Math.floor(t/3600)); const m = two(Math.floor((t%3600)/60)); const s = two(t%60); return `${h}:${m}:${s}`; };
+
+  function isoDate(d=new Date()){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
+  function weekKey(d=new Date()){ const dt=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const weekNo=Math.ceil((((dt-yearStart)/86400000)+1)/7); return `${dt.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`; }
+
+  function ensureMetaForItem(it){
+    if(!it.createdAt){ it.createdAt = isoDate(new Date()); }
+    if(!it.tag){ it.tag = `TAG:${it.createdAt}`; }
+    return it;
+  }
 
   function captureStateFromDOM(){
-    const domItems = [...listEl.querySelectorAll('.item')].map(li=>({
-      text: li.querySelector('.item__label').textContent.trim(),
-      done: li.classList.contains('completed')
-    }));
+    const domItems = [...listEl.querySelectorAll('.item')].map(li=>{
+      const text = li.querySelector('.item__label').textContent.trim();
+      const done = li.classList.contains('completed');
+      const createdAt = li.dataset.createdAt || isoDate(new Date());
+      return ensureMetaForItem({ text, done, createdAt });
+    });
     return { ...state, items: domItems, elapsedText: timeEl.textContent.trim(), lastUpdated: nowTs() };
   }
   function syncFromDOM(){ state = captureStateFromDOM(); }
+
+  function refreshUserTags(){
+    const set = new Set([...(state.userTags||[])]);
+    (state.items||[]).forEach(it=>{ ensureMetaForItem(it); set.add(it.tag); });
+    state.userTags = Array.from(set).sort().reverse();
+  }
 
   function scheduleSave(){
     saveBadge.textContent='Guardando…';
@@ -188,7 +209,7 @@
   }
   async function saveAuto(){
     const user = auth.currentUser; if(!user){ saveBadge.textContent='Sin sesión'; return; }
-    const data = captureStateFromDOM();
+    const data = captureStateFromDOM(); refreshUserTags(); data.userTags = state.userTags;
     try{
       await setDoc(doc(db,'users',user.uid), data, { merge:true });
       localStorage.setItem(lsKey(user.uid), JSON.stringify(data));
@@ -197,106 +218,110 @@
       localStorage.setItem(lsKey(user.uid), JSON.stringify(data));
       saveBadge.textContent='Guardado local';
     }
+    renderTagsOnly();
   }
   async function saveNow(){
     const user = auth.currentUser; if(!user){ alert('Inicia sesión primero.'); return; }
-    syncFromDOM();
+    syncFromDOM(); refreshUserTags();
     saveBadge.textContent='Guardando…';
     try{
-      await setDoc(doc(db,'users',user.uid), { ...state, lastUpdated: nowTs() }, { merge:true });
+      await setDoc(doc(db,'users',user.uid), { ...state, userTags: state.userTags, lastUpdated: nowTs() }, { merge:true });
       localStorage.setItem(lsKey(user.uid), JSON.stringify(state));
       saveBadge.textContent='Guardado ✅';
     }catch(e){
       saveBadge.textContent='Error al guardar';
       alert('No se pudo guardar en la nube. Revisa conexión y dominios autorizados.');
     }
+    renderTagsOnly();
   }
 
   function updateProgress(){
     const total = state.items.length || 0;
     const done = state.items.filter(it=>it.done).length;
     const pct = total ? Math.round((done/total)*100) : 0;
-    pctEl.textContent = pct;
+    document.querySelector('#pct').textContent = pct;
     const R=60, C=2*Math.PI*R; ringProg.setAttribute('stroke-dasharray', C); ringProg.setAttribute('stroke-dashoffset', C*(1-(total?done/total:0)));
-    leftEl.textContent = total ? `${total-done} pendiente${total-done===1?'':'s'} · ${done}/${total}` : 'Sin ítems. Pulsa “Agregar ítem”.';
+    document.querySelector('#left').textContent = total ? `${total-done} pendiente${total-done===1?'':'s'} · ${done}/${total}` : 'Sin ítems. Pulsa “Agregar ítem”.';
     btnFinish.disabled = !(done===total && total>0 && (started || cdActive));
     btnTxt.disabled = !(total>0);
   }
-  function createItemElement(it, idx){
-    const li=document.createElement('li'); li.className='item'; if(it.done) li.classList.add('completed'); li.dataset.idx = String(idx);
+
+  function itemDOM(it, idx){
+    const li=document.createElement('li'); li.className='item'; if(it.done) li.classList.add('completed'); li.dataset.idx = String(idx); li.dataset.createdAt = it.createdAt || isoDate(new Date());
     const btn=document.createElement('div'); btn.className='check'; btn.setAttribute('role','checkbox'); btn.setAttribute('aria-checked', it.done?'true':'false'); if(it.done) btn.classList.add('checked');
     const label=document.createElement('div'); label.className='item__label'; label.contentEditable='true'; label.spellcheck=false; label.textContent=it.text||'Nuevo ítem…';
+    const tagSpan=document.createElement('span'); tagSpan.className='tag'; tagSpan.textContent = ` (${it.tag||('TAG:'+li.dataset.createdAt)})`;
     const bArch=document.createElement('button'); bArch.className='archive ghost'; bArch.textContent='Archivar';
     const del=document.createElement('button'); del.className='del ghost'; del.textContent='Eliminar';
 
-    btn.addEventListener('click', ()=>{
-      const d = !state.items[idx].done;
-      state.items[idx].done = d;
-      li.classList.toggle('completed', d);
-      btn.classList.toggle('checked', d);
-      btn.setAttribute('aria-checked', d?'true':'false');
-      updateProgress();
-      scheduleSave();
-    });
+    btn.addEventListener('click', ()=>{ const d = !state.items[idx].done; state.items[idx].done = d; li.classList.toggle('completed', d); btn.classList.toggle('checked', d); btn.setAttribute('aria-checked', d?'true':'false'); updateProgress(); scheduleSave(); });
+    label.addEventListener('input', ()=>{ state.items[idx].text = label.textContent.trim(); scheduleSave(); });
+    bArch.addEventListener('click', ()=>{ if(state.items[idx].done){ alert('Este ítem ya está completado. No se archiva.'); return; } state.archived.unshift(state.items[idx].text || 'Ítem sin título'); state.items.splice(idx,1); renderList(); renderArchivedOnly(); scheduleSave(); });
+    del.addEventListener('click', ()=>{ if(confirm('¿Eliminar este ítem? Se moverá a la papelera.')){ state.trash.unshift(state.items[idx].text || 'Ítem sin título'); state.items.splice(idx,1); renderList(); renderTrashOnly(); scheduleSave(); } });
 
-    label.addEventListener('input', ()=>{
-      state.items[idx].text = label.textContent.trim();
-      scheduleSave();
-    });
-
-    bArch.addEventListener('click', ()=>{
-      if(state.items[idx].done){ alert('Este ítem ya está completado. No se archiva.'); return; }
-      state.archived.unshift(state.items[idx].text || 'Ítem sin título');
-      state.items.splice(idx,1);
-      renderList(); renderArchivedOnly();
-      scheduleSave();
-    });
-
-    del.addEventListener('click', ()=>{
-      if(confirm('¿Eliminar este ítem? Se moverá a la papelera.')){
-        state.trash.unshift(state.items[idx].text || 'Ítem sin título');
-        state.items.splice(idx,1);
-        renderList(); renderTrashOnly();
-        scheduleSave();
-      }
-    });
-
-    li.append(btn,label,bArch,del);
+    li.append(btn,label,tagSpan,bArch,del);
     return li;
   }
+
   function renderList(){
     listEl.innerHTML='';
-    (state.items||[]).forEach((it,idx)=>listEl.appendChild(createItemElement(it, idx)));
-    timeEl.textContent = state.elapsedText||'00:00'; updateProgress();
+    (state.items||[]).forEach((it,idx)=>{ ensureMetaForItem(it); listEl.appendChild(itemDOM(it, idx)); });
+    timeEl.textContent = state.elapsedText||'00:00:00';
+    updateProgress();
   }
+
   function renderArchivedOnly(){
     archList.innerHTML=''; (state.archived||[]).forEach((txt,i)=>{
       const li=document.createElement('li'); li.className='arch-item'; const span=document.createElement('div'); span.textContent=txt;
       const bR=document.createElement('button'); bR.className='ghost'; bR.textContent='Restaurar';
       const bD=document.createElement('button'); bD.className='danger'; bD.textContent='Eliminar';
-      bR.addEventListener('click', ()=>{ state.items.push({text:txt,done:false}); state.archived.splice(i,1); renderList(); renderArchivedOnly(); scheduleSave(); });
-      bD.addEventListener('click', ()=>{ state.archived.splice(i,1); renderArchivedOnly(); scheduleSave(); });
+      bR.addEventListener('click', ()=>{ state.items.push(ensureMetaForItem({text:txt,done:false})); state.archived.splice(i,1); renderList(); renderArchivedOnly(); scheduleSave(); });
+      // FIX: move deleted archived item to trash
+      bD.addEventListener('click', ()=>{ 
+        if(confirm('¿Eliminar este ítem archivado? Se moverá a la papelera.')){
+          state.trash.unshift(txt || 'Ítem sin título');
+          state.archived.splice(i,1);
+          renderTrashOnly(); renderArchivedOnly();
+          scheduleSave();
+        }
+      });
       li.append(span,bR,bD); archList.appendChild(li);
     });
     archCount.textContent=`(${state.archived?.length||0})`;
   }
+
   function renderTrashOnly(){
     trashList.innerHTML=''; (state.trash||[]).forEach((txt,i)=>{
       const li=document.createElement('li'); li.className='trash-item'; const span=document.createElement('div'); span.textContent=txt;
       const bR=document.createElement('button'); bR.className='ghost'; bR.textContent='Restaurar';
       const bD=document.createElement('button'); bD.className='danger'; bD.textContent='Eliminar';
-      bR.addEventListener('click', ()=>{ state.items.push({text:txt,done:false}); state.trash.splice(i,1); renderList(); renderTrashOnly(); scheduleSave(); });
+      bR.addEventListener('click', ()=>{ state.items.push(ensureMetaForItem({text:txt,done:false})); state.trash.splice(i,1); renderList(); renderTrashOnly(); scheduleSave(); });
       bD.addEventListener('click', ()=>{ state.trash.splice(i,1); renderTrashOnly(); scheduleSave(); });
       li.append(span,bR,bD); trashList.appendChild(li);
     });
     trashCount.textContent=`(${state.trash?.length||0})`;
   }
+
+  function renderTagsOnly(){
+    const set = new Set([...(state.userTags||[])]);
+    (state.items||[]).forEach(it=>{ ensureMetaForItem(it); set.add(it.tag); });
+    state.userTags = Array.from(set).sort().reverse();
+    tagsList.innerHTML='';
+    (state.userTags||[]).forEach((tg)=>{
+      const li=document.createElement('li'); li.className='tag-item';
+      const span=document.createElement('div'); span.textContent=tg;
+      const bAdd=document.createElement('button'); bAdd.className='ghost'; bAdd.textContent='Agregar al dashboard';
+      bAdd.addEventListener('click', ()=>{ state.items.push(ensureMetaForItem({text:tg, done:false})); renderList(); scheduleSave(); });
+      li.append(span, bAdd); tagsList.appendChild(li);
+    });
+    tagCount.textContent = `(${state.userTags?.length||0})`;
+  }
+
   function renderHistory(){
     const groups={}; (state.history||[]).forEach((s,idx)=>{ (groups[s.week] ||= []).push({s,idx}); });
-    historyGroups.innerHTML=''; const weeks=Object.keys(groups); document.querySelector('#histCount').textContent=`(${state.history?.length||0})`;
-    weeks.forEach(wk=>{
-      const wrap=document.createElement('div'); const title=document.createElement('div'); title.style.marginTop='10px'; title.innerHTML=`<strong>Semana ${wk}</strong>`; wrap.appendChild(title);
-      const ul=document.createElement('ul'); ul.className='list-reset';
+    historyGroups.innerHTML=''; document.querySelector('#histCount').textContent=`(${state.history?.length||0})`;
+    Object.keys(groups).forEach(wk=>{
+      const wrap=document.createElement('div'); const title=document.createElement('div'); title.style.marginTop='10px'; title.innerHTML=`<strong>Semana ${wk}</strong>`; const ul=document.createElement('ul'); ul.className='list-reset';
       groups[wk].forEach(({s,idx})=>{
         const li=document.createElement('li'); li.className='hist-item';
         const label=document.createElement('div'); label.innerHTML=`<strong>${s.date}</strong> — ${s.items.length} tareas, tiempo ${s.elapsed}`;
@@ -306,46 +331,64 @@
         bDel.addEventListener('click', ()=>{ if(confirm('¿Eliminar esta jornada del historial?')) { state.history.splice(idx,1); renderHistory(); scheduleSave(); } });
         li.append(label,bDL,bDel); ul.appendChild(li);
       });
-      wrap.appendChild(ul); historyGroups.appendChild(wrap);
+      wrap.append(title,ul); historyGroups.appendChild(wrap);
     });
   }
-  function renderAll(){ renderList(); renderArchivedOnly(); renderTrashOnly(); renderHistory(); }
 
-  // ---- TIMER
+  function renderAll(){ renderList(); renderArchivedOnly(); renderTrashOnly(); renderTagsOnly(); renderHistory(); }
+
+  // TIMER
   let started=false, startAt=0, ticker=null; let cdActive=false, cdEndAt=0;
   function tick(){
-    if(cdActive){ const left=Math.max(0, cdEndAt - Date.now()); timeEl.textContent=mmss(left); if(left<=0){ stopCountdown(); const total=state.items.length; const done=state.items.filter(i=>i.done).length; if(total>0 && done===total){ finish(); alert('⏱️ Cuenta atrás finalizada. Jornada guardada en Historial.'); } else { alert('⏱️ Cuenta atrás finalizada. Aún hay ítems pendientes.'); } } }
-    else if(started){ timeEl.textContent=mmss(Date.now()-startAt); }
+    if(cdActive){
+      const left=Math.max(0, cdEndAt - Date.now());
+      timeEl.textContent=hms(left);
+      if(left<=0){
+        stopCountdown();
+        const total=state.items.length, done=state.items.filter(i=>i.done).length;
+        if(total>0 && done===total){ finish(); alert('⏱️ Cuenta atrás finalizada. Jornada guardada.'); }
+        else { alert('⏱️ Cuenta atrás finalizada. Aún hay ítems pendientes.'); }
+      }
+    } else if(started){
+      timeEl.textContent=hms(Date.now()-startAt);
+    }
   }
   function ensureTicker(){ if(!ticker) ticker=setInterval(tick,250); }
   function start(){ if(started) return; started=true; startAt=Date.now(); ensureTicker(); tick(); btnStart.disabled=true; }
   function startCountdown(){ const mins=Math.max(1, Math.min(600, Number(cdMinutesInput.value)||25)); cdEndAt=Date.now()+mins*60*1000; cdActive=true; ensureTicker(); tick(); btnStartCD.disabled=true; btnResetCD.disabled=false; if(!started){ start(); } }
   function stopCountdown(){ cdActive=false; btnStartCD.disabled=false; btnResetCD.disabled=false; }
-  function resetCountdown(){ stopCountdown(); if(ticker){ clearInterval(ticker); ticker=null; } started=false; startAt=0; btnStart.disabled=false; timeEl.textContent='00:00'; }
-  function isoDate(d=new Date()){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
-  function weekKey(d=new Date()){ const dt=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const weekNo=Math.ceil((((dt-yearStart)/86400000)+1)/7); return `${dt.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`; }
-  function finish(){ if(ticker){ clearInterval(ticker); ticker=null; } cdActive=false; btnStartCD.disabled=false; btnResetCD.disabled=true; const elapsed=timeEl.textContent.trim();
-    const session={ date: isoDate(new Date()), week: weekKey(new Date()), elapsed, items: JSON.parse(JSON.stringify(state.items)), archived:[...(state.archived||[])] };
-    state.history = state.history||[]; state.history.unshift(session); started=false; startAt=0; btnStart.disabled=false; renderHistory(); scheduleSave(); }
+  function resetCountdown(){ stopCountdown(); if(ticker){ clearInterval(ticker); ticker=null; } started=false; startAt=0; btnStart.disabled=false; timeEl.textContent='00:00:00'; }
 
-  // ---- TXT
+  function finish(){
+    if(ticker){ clearInterval(ticker); ticker=null; }
+    cdActive=false; btnStartCD.disabled=false; btnResetCD.disabled=true;
+    const elapsed=timeEl.textContent.trim();
+    const session={ date: isoDate(new Date()), week: weekKey(new Date()), elapsed, items: JSON.parse(JSON.stringify(state.items)), archived:[...(state.archived||[])] };
+    state.history = state.history||[]; state.history.unshift(session);
+    started=false; startAt=0; btnStart.disabled=false; renderHistory(); scheduleSave();
+  }
+
+  // TXT
   function downloadHistoryTxt(idx){
     const s=(state.history||[])[idx]; if(!s) return;
-    const lines=[]; lines.push(`DOSALA CheckList — Jornada ${s.date} (Semana ${s.week})`); lines.push(`Usuario: ${usernameEl.textContent.trim()||'Usuario'}`); lines.push(`Tiempo: ${s.elapsed}`); lines.push(''); lines.push('Tareas:');
+    const lines=[];
+    lines.push(`DOSALA CheckList — Jornada ${s.date} (Semana ${s.week})`);
+    lines.push(`Usuario: ${usernameEl.textContent.trim()||'Usuario'}`);
+    lines.push(`Tiempo: ${s.elapsed}`); lines.push(''); lines.push('Tareas:');
     s.items.forEach((it,i)=>lines.push(`${String(i+1).padStart(2,'0')} [${it.done?'X':' '}] ${it.text}`));
-    if(s.archived && s.archived.length){ lines.push(''); lines.push('Pospuestos (archivados):'); s.archived.forEach(t=>lines.push(`- ${t}`)); }
+    if(s.archived?.length){ lines.push(''); lines.push('Pospuestos (archivados):'); s.archived.forEach(t=>lines.push(`- ${t}`)); }
     const blob=new Blob([lines.join('\r\n')+'\r\n'], {type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`DOSALA_Jornada_${s.date}.txt`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500);
   }
   function downloadTXT(){
-    const lines=[]; const nowIso=isoDate(new Date()); const displayName=usernameEl.textContent.trim()||'Invitado';
+    const lines=[]; const nowIso=isoDate(new Date()); const displayName=document.querySelector('#username').textContent.trim()||'Invitado';
     lines.push(`DOSALA CheckList — ${nowIso}`); lines.push(`Usuario: ${displayName}`); lines.push(`Tiempo actual: ${timeEl.textContent.trim()}`); lines.push(''); lines.push('Tareas actuales:');
-    state.items.forEach((it,idx)=>{ const mark=it.done?'[X]':'[ ]'; lines.push(`${String(idx+1).padStart(2,'0')} ${mark} ${it.text}`); });
-    const archived=(state.archived||[]); if(archived.length){ lines.push(''); lines.push('Pospuestos (archivados):'); archived.forEach(a=>lines.push(`- ${a}`)); }
+    state.items.forEach((it,idx)=>{ const mark=it.done?'[X]':'[ ]'; lines.push(`${String(idx+1).padStart(2,'0')} ${mark} ${it.text} (${it.tag||''})`); });
+    if(state.archived?.length){ lines.push(''); lines.push('Pospuestos (archivados):'); state.archived.forEach(a=>lines.push(`- ${a}`)); }
     const blob=new Blob([lines.join('\r\n')+'\r\n'], {type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`DOSALA_CheckList_${nowIso}.txt`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500);
   }
 
-  // ---- ACCIONES
-  btnAdd.addEventListener('click', ()=>{ syncFromDOM(); state.items.push({text:'Nuevo ítem…',done:false}); renderList(); scheduleSave(); });
+  // ACCIONES
+  btnAdd.addEventListener('click', ()=>{ syncFromDOM(); state.items.push(ensureMetaForItem({text:'Nuevo ítem…',done:false})); renderList(); scheduleSave(); });
   btnStart.addEventListener('click', start);
   btnFinish.addEventListener('click', finish);
   btnTxt.addEventListener('click', downloadTXT);
@@ -354,11 +397,9 @@
   btnEmptyTrash.addEventListener('click', ()=>{ if(confirm('¿Vaciar la papelera definitivamente? Esta acción no se puede deshacer.')){ state.trash=[]; renderTrashOnly(); scheduleSave(); } });
   btnSaveNow.addEventListener('click', saveNow);
 
-  // ---- LOGIN/CARGA
+  // PICK NEWEST
   function pickNewest(remote, local){
-    if(remote && local){
-      return (Number(remote.lastUpdated||0) >= Number(local.lastUpdated||0)) ? remote : local;
-    }
+    if(remote && local){ return (Number(remote.lastUpdated||0) >= Number(local.lastUpdated||0)) ? remote : local; }
     return remote || local || null;
   }
 
@@ -373,7 +414,7 @@
       let local = null; const raw = localStorage.getItem(lsKey(cred.user.uid)); if(raw){ try{ local = JSON.parse(raw); }catch{} }
       let remote = null; try{ const snap = await getDoc(doc(db, 'users', cred.user.uid)); if(snap.exists()) remote = snap.data(); }catch{}
       const chosen = pickNewest(remote, local);
-      if(chosen){ state = { items:[], archived:[], trash:[], history:[], elapsedText:'00:00', lastUpdated:0, ...chosen }; }
+      if(chosen){ state = { items:[], archived:[], trash:[], history:[], userTags:[], elapsedText:'00:00:00', lastUpdated:0, ...chosen }; }
       renderAll();
       saveBadge.textContent = 'Listo';
     }catch(e){
@@ -385,7 +426,7 @@
 
   onAuthStateChanged(auth, (user)=>{
     if(user){
-      usernameEl.textContent = user.displayName || (user.email?.split('@')[0]) || 'Usuario';
+      document.querySelector('#username').textContent = user.displayName || (user.email?.split('@')[0]) || 'Usuario';
       login.style.display='none'; appScreen.style.display='';
     }else{
       appScreen.style.display='none'; login.style.display='';

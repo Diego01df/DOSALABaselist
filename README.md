@@ -1,26 +1,5 @@
-# DOSALA CheckList — Dual Save (Auto + Manual)
-
-- Corrige la sobre-escritura de ítems al agregar nuevos.
-- Doble guardado: auto (Firestore + localStorage) y manual (botón “Guardar ahora”).
-- En login, carga la versión más reciente (nube vs local) usando `lastUpdated`.
-
-## Despliegue en GitHub Pages
-1) Sube a la **raíz** del repo: `index.html`, `manifest.json`, `service-worker.js`, carpeta `icons/`.
-2) Settings → Pages → main / root.
-3) Abre tu sitio y recarga con Ctrl+F5.
-
-## Firebase
-- Proyecto: `dosalachecklist`
-- Auth Email/Password habilitado y usuarios creados (Diego / Chabeli).
-- Authorized domains: `localhost`, `diego01df.github.io`.
-- Reglas mínimas Firestore:
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
-  }
-}
-```
+# DOSALA CheckList — Tags + Dual Save (Fix)
+- **FIX:** Al eliminar desde **Archivados**, ahora el ítem se **mueve a Papelera** (no desaparece).
+- Tags por fecha de creación y lista de **Tags guardados por usuario**.
+- Cronómetro HH:MM:SS desde 00:00:00 y cuenta atrás independiente.
+- Doble guardado: auto + botón **Guardar ahora**.
