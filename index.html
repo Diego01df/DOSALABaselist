@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DOSALA CheckList — Tags + Dual Save (Fix)</title>
+<title>DOSALA CheckList — Estable (Tags + Dual Save)</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00ffa2">
 <link rel="icon" href="icons/icon-192.png">
@@ -190,7 +190,8 @@
       const text = li.querySelector('.item__label').textContent.trim();
       const done = li.classList.contains('completed');
       const createdAt = li.dataset.createdAt || isoDate(new Date());
-      return ensureMetaForItem({ text, done, createdAt });
+      const tag = `TAG:${createdAt}`;
+      return { text, done, createdAt, tag };
     });
     return { ...state, items: domItems, elapsedText: timeEl.textContent.trim(), lastUpdated: nowTs() };
   }
@@ -205,7 +206,7 @@
   function scheduleSave(){
     saveBadge.textContent='Guardando…';
     if(saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveAuto, 800);
+    saveTimer = setTimeout(saveAuto, 700);
   }
   async function saveAuto(){
     const user = auth.currentUser; if(!user){ saveBadge.textContent='Sin sesión'; return; }
@@ -239,9 +240,9 @@
     const total = state.items.length || 0;
     const done = state.items.filter(it=>it.done).length;
     const pct = total ? Math.round((done/total)*100) : 0;
-    document.querySelector('#pct').textContent = pct;
+    pctEl.textContent = String(pct);
     const R=60, C=2*Math.PI*R; ringProg.setAttribute('stroke-dasharray', C); ringProg.setAttribute('stroke-dashoffset', C*(1-(total?done/total:0)));
-    document.querySelector('#left').textContent = total ? `${total-done} pendiente${total-done===1?'':'s'} · ${done}/${total}` : 'Sin ítems. Pulsa “Agregar ítem”.';
+    leftEl.textContent = total ? `${total-done} pendiente${total-done===1?'':'s'} · ${done}/${total}` : 'Sin ítems. Pulsa “Agregar ítem”.';
     btnFinish.disabled = !(done===total && total>0 && (started || cdActive));
     btnTxt.disabled = !(total>0);
   }
@@ -276,7 +277,6 @@
       const bR=document.createElement('button'); bR.className='ghost'; bR.textContent='Restaurar';
       const bD=document.createElement('button'); bD.className='danger'; bD.textContent='Eliminar';
       bR.addEventListener('click', ()=>{ state.items.push(ensureMetaForItem({text:txt,done:false})); state.archived.splice(i,1); renderList(); renderArchivedOnly(); scheduleSave(); });
-      // FIX: move deleted archived item to trash
       bD.addEventListener('click', ()=>{ 
         if(confirm('¿Eliminar este ítem archivado? Se moverá a la papelera.')){
           state.trash.unshift(txt || 'Ítem sin título');
@@ -380,7 +380,7 @@
     const blob=new Blob([lines.join('\r\n')+'\r\n'], {type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`DOSALA_Jornada_${s.date}.txt`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500);
   }
   function downloadTXT(){
-    const lines=[]; const nowIso=isoDate(new Date()); const displayName=document.querySelector('#username').textContent.trim()||'Invitado';
+    const lines=[]; const nowIso=isoDate(new Date()); const displayName=usernameEl.textContent.trim()||'Invitado';
     lines.push(`DOSALA CheckList — ${nowIso}`); lines.push(`Usuario: ${displayName}`); lines.push(`Tiempo actual: ${timeEl.textContent.trim()}`); lines.push(''); lines.push('Tareas actuales:');
     state.items.forEach((it,idx)=>{ const mark=it.done?'[X]':'[ ]'; lines.push(`${String(idx+1).padStart(2,'0')} ${mark} ${it.text} (${it.tag||''})`); });
     if(state.archived?.length){ lines.push(''); lines.push('Pospuestos (archivados):'); state.archived.forEach(a=>lines.push(`- ${a}`)); }
@@ -397,7 +397,8 @@
   btnEmptyTrash.addEventListener('click', ()=>{ if(confirm('¿Vaciar la papelera definitivamente? Esta acción no se puede deshacer.')){ state.trash=[]; renderTrashOnly(); scheduleSave(); } });
   btnSaveNow.addEventListener('click', saveNow);
 
-  // PICK NEWEST
+  window.addEventListener('beforeunload', ()=>{ try{ localStorage.setItem(lsKey(auth.currentUser?.uid||'anon'), JSON.stringify(captureStateFromDOM())); }catch{} });
+
   function pickNewest(remote, local){
     if(remote && local){ return (Number(remote.lastUpdated||0) >= Number(local.lastUpdated||0)) ? remote : local; }
     return remote || local || null;

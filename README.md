@@ -1,5 +1,8 @@
-# DOSALA CheckList — Tags + Dual Save (Fix)
-- **FIX:** Al eliminar desde **Archivados**, ahora el ítem se **mueve a Papelera** (no desaparece).
-- Tags por fecha de creación y lista de **Tags guardados por usuario**.
-- Cronómetro HH:MM:SS desde 00:00:00 y cuenta atrás independiente.
-- Doble guardado: auto + botón **Guardar ahora**.
+# DOSALA CheckList — Estable (Tags + Dual Save)
+- Archivados→Eliminar mueve a **Papelera**.
+- Cronómetro estable desde `00:00:00`. CA separada.
+- Evita sobreescrituras al agregar (captura DOM→estado).
+- Service Worker actualizado (network-first para index).
+- Guardado al salir (localStorage).
+
+Despliegue: subir a raíz del repo, GitHub Pages main/root, hard refresh.
