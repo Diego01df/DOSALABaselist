@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DOSALA CheckList — Sync + PWA</title>
+<title>DOSALA CheckList — Dual Save</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00ffa2">
 <link rel="icon" href="icons/icon-192.png">
@@ -89,7 +89,8 @@
         <button id="btnStartCD" class="ghost">Iniciar CA</button>
         <button id="btnResetCD" class="ghost" disabled>Reiniciar CA</button>
         <button id="btnTxt" class="danger" style="margin-left:auto" disabled>Descargar TXT</button>
-        <span id="saveBadge" class="small muted" style="margin-left:8px">Guardado</span>
+        <button id="btnSaveNow" class="secondary">Guardar ahora</button>
+        <span id="saveBadge" class="small muted" style="margin-left:8px">Listo</span>
       </div>
       <div class="status">
         <div>Tiempo: <span id="time" class="timer">00:00</span></div>
@@ -133,7 +134,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCLmdI43AvoIFeDkE9wuu1fjqS5p29INT4",
@@ -158,141 +159,176 @@
   const listEl = $('#list'), timeEl = $('#time'), leftEl = $('#left'), ringProg = $('#ringProg'), pctEl = $('#pct'), todayEl = $('#today');
   const archList = $('#archList'), archCount = $('#archCount'), trashList = $('#trashList'), trashCount = $('#trashCount'), historyGroups = $('#historyGroups');
   const btnAdd = $('#btnAdd'), btnStart = $('#btnStart'), btnFinish = $('#btnFinish'), btnTxt = $('#btnTxt');
-  const cdMinutesInput = $('#cdMinutes'), btnStartCD = $('#btnStartCD'), btnResetCD = $('#btnResetCD'), btnEmptyTrash = $('#btnEmptyTrash'), btnLogout = $('#btnLogout');
+  const cdMinutesInput = $('#cdMinutes'), btnStartCD = $('#btnStartCD'), btnResetCD = $('#btnResetCD'), btnEmptyTrash = $('#btnEmptyTrash'), btnLogout = $('#btnLogout'), btnSaveNow = $('#btnSaveNow');
 
   function setToday(){ const now=new Date(); const opts={weekday:'long',year:'numeric',month:'long',day:'numeric'}; todayEl.textContent = `Hoy: ${now.toLocaleDateString('es-ES', opts)}`; }
   setToday();
 
-  let state = { items:[], archived:[], trash:[], history:[], elapsedText:"00:00" };
+  // ---- STATE
+  let state = { items:[], archived:[], trash:[], history:[], elapsedText:"00:00", lastUpdated: 0 };
   const lsKey = uid => `dosala-state-${uid}`;
-  let saveTimer = null, localLastWrite = 0, applyingRemote = false;
-  let unsubscribeUserDoc = null;
+  let saveTimer = null;
 
-  function mmss(ms){ const t=Math.max(0,Math.floor(ms/1000)); const m=String(Math.floor(t/60)).padStart(2,'0'); const s=String(t%60).padStart(2,'0'); return `${m}:${s}`; }
+  const nowTs = () => Date.now();
+  const mmss = (ms) => { const t=Math.max(0,Math.floor(ms/1000)); const m=String(Math.floor(t/60)).padStart(2,'0'); const s=String(t%60).padStart(2,'0'); return `${m}:${s}`; };
 
   function captureStateFromDOM(){
-    return {
-      items: [...listEl.querySelectorAll('.item')].map(li=>({ text: li.querySelector('.item__label').textContent.trim(), done: li.classList.contains('completed') })),
-      archived: state.archived || [],
-      trash: state.trash || [],
-      history: state.history || [],
-      elapsedText: timeEl.textContent.trim(),
-      lastUpdated: Date.now()
-    };
+    const domItems = [...listEl.querySelectorAll('.item')].map(li=>({
+      text: li.querySelector('.item__label').textContent.trim(),
+      done: li.classList.contains('completed')
+    }));
+    return { ...state, items: domItems, elapsedText: timeEl.textContent.trim(), lastUpdated: nowTs() };
   }
+  function syncFromDOM(){ state = captureStateFromDOM(); }
 
-  function scheduleSave(){ if(applyingRemote) return; saveBadge.textContent='Guardando…'; if(saveTimer) clearTimeout(saveTimer); saveTimer=setTimeout(saveState, 700); }
-  async function saveState(){
-    const user = auth.currentUser; if(!user) return;
-    const data = captureStateFromDOM(); localLastWrite = data.lastUpdated;
-    const ref = doc(db, 'users', user.uid);
-    try{ await setDoc(ref, data, { merge:true }); }catch(e){ console.log('save queued/offline?', e); }
-    localStorage.setItem(lsKey(user.uid), JSON.stringify({ ...state, ...data }));
-    saveBadge.textContent='Guardado';
+  function scheduleSave(){
+    saveBadge.textContent='Guardando…';
+    if(saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveAuto, 800);
   }
-
-  async function loadStateOnce(){
-    const user = auth.currentUser; if(!user) return;
-    const ref = doc(db, 'users', user.uid);
-    const snap = await getDoc(ref);
-    if(snap.exists()){
-      applyingRemote = true;
-      state = { ...state, ...snap.data() };
-      renderAll();
+  async function saveAuto(){
+    const user = auth.currentUser; if(!user){ saveBadge.textContent='Sin sesión'; return; }
+    const data = captureStateFromDOM();
+    try{
+      await setDoc(doc(db,'users',user.uid), data, { merge:true });
+      localStorage.setItem(lsKey(user.uid), JSON.stringify(data));
+      saveBadge.textContent='Guardado (auto) ✅';
+    }catch(e){
+      localStorage.setItem(lsKey(user.uid), JSON.stringify(data));
+      saveBadge.textContent='Guardado local';
+    }
+  }
+  async function saveNow(){
+    const user = auth.currentUser; if(!user){ alert('Inicia sesión primero.'); return; }
+    syncFromDOM();
+    saveBadge.textContent='Guardando…';
+    try{
+      await setDoc(doc(db,'users',user.uid), { ...state, lastUpdated: nowTs() }, { merge:true });
       localStorage.setItem(lsKey(user.uid), JSON.stringify(state));
-      applyingRemote = false;
-    }else{
-      const raw = localStorage.getItem(lsKey(user.uid)); if(raw){ try{ state = { ...state, ...JSON.parse(raw) }; }catch{} }
-      await setDoc(ref, { ...state, lastUpdated: Date.now() }, { merge:true });
+      saveBadge.textContent='Guardado ✅';
+    }catch(e){
+      saveBadge.textContent='Error al guardar';
+      alert('No se pudo guardar en la nube. Revisa conexión y dominios autorizados.');
     }
   }
 
-  function subscribeUserDoc(){
-    const user = auth.currentUser; if(!user) return;
-    const ref = doc(db, 'users', user.uid);
-    if (unsubscribeUserDoc) unsubscribeUserDoc();
-    unsubscribeUserDoc = onSnapshot(ref, (snap)=>{
-      if(!snap.exists()) return;
-      const remote = snap.data();
-      if(remote.lastUpdated && remote.lastUpdated <= localLastWrite) return;
-      applyingRemote = true;
-      state = { ...state, ...remote };
-      renderAll();
-      localStorage.setItem(lsKey(user.uid), JSON.stringify(state));
-      applyingRemote = false;
-    });
-  }
-
   function updateProgress(){
-    const total = listEl.querySelectorAll('.item').length || 0;
-    const done = listEl.querySelectorAll('.item.completed').length;
+    const total = state.items.length || 0;
+    const done = state.items.filter(it=>it.done).length;
     const pct = total ? Math.round((done/total)*100) : 0;
     pctEl.textContent = pct;
     const R=60, C=2*Math.PI*R; ringProg.setAttribute('stroke-dasharray', C); ringProg.setAttribute('stroke-dashoffset', C*(1-(total?done/total:0)));
     leftEl.textContent = total ? `${total-done} pendiente${total-done===1?'':'s'} · ${done}/${total}` : 'Sin ítems. Pulsa “Agregar ítem”.';
     btnFinish.disabled = !(done===total && total>0 && (started || cdActive));
     btnTxt.disabled = !(total>0);
-    scheduleSave();
   }
-  function createItem(text,done=false){
-    const li=document.createElement('li'); li.className='item'; if(done) li.classList.add('completed');
-    const btn=document.createElement('div'); btn.className='check'; btn.setAttribute('role','checkbox'); btn.setAttribute('aria-checked', done?'true':'false'); if(done) btn.classList.add('checked');
-    const label=document.createElement('div'); label.className='item__label'; label.contentEditable='true'; label.spellcheck=false; label.textContent=text||'Nuevo ítem…';
+  function createItemElement(it, idx){
+    const li=document.createElement('li'); li.className='item'; if(it.done) li.classList.add('completed'); li.dataset.idx = String(idx);
+    const btn=document.createElement('div'); btn.className='check'; btn.setAttribute('role','checkbox'); btn.setAttribute('aria-checked', it.done?'true':'false'); if(it.done) btn.classList.add('checked');
+    const label=document.createElement('div'); label.className='item__label'; label.contentEditable='true'; label.spellcheck=false; label.textContent=it.text||'Nuevo ítem…';
     const bArch=document.createElement('button'); bArch.className='archive ghost'; bArch.textContent='Archivar';
-    bArch.addEventListener('click', ()=>{ if(li.classList.contains('completed')){ alert('Este ítem ya está completado. No se archiva.'); return; } const txt=label.textContent.trim()||'Ítem sin título'; state.archived.unshift(txt); li.remove(); updateProgress(); renderArchivedOnly(); });
     const del=document.createElement('button'); del.className='del ghost'; del.textContent='Eliminar';
-    del.addEventListener('click', ()=>{ const txt=label.textContent.trim()||'Ítem sin título'; if(confirm('¿Eliminar este ítem? Se moverá a la papelera.')){ state.trash.unshift(txt); li.remove(); updateProgress(); renderTrashOnly(); } });
+
+    btn.addEventListener('click', ()=>{
+      const d = !state.items[idx].done;
+      state.items[idx].done = d;
+      li.classList.toggle('completed', d);
+      btn.classList.toggle('checked', d);
+      btn.setAttribute('aria-checked', d?'true':'false');
+      updateProgress();
+      scheduleSave();
+    });
+
+    label.addEventListener('input', ()=>{
+      state.items[idx].text = label.textContent.trim();
+      scheduleSave();
+    });
+
+    bArch.addEventListener('click', ()=>{
+      if(state.items[idx].done){ alert('Este ítem ya está completado. No se archiva.'); return; }
+      state.archived.unshift(state.items[idx].text || 'Ítem sin título');
+      state.items.splice(idx,1);
+      renderList(); renderArchivedOnly();
+      scheduleSave();
+    });
+
+    del.addEventListener('click', ()=>{
+      if(confirm('¿Eliminar este ítem? Se moverá a la papelera.')){
+        state.trash.unshift(state.items[idx].text || 'Ítem sin título');
+        state.items.splice(idx,1);
+        renderList(); renderTrashOnly();
+        scheduleSave();
+      }
+    });
+
     li.append(btn,label,bArch,del);
-    btn.addEventListener('click', ()=>{ const d=li.classList.toggle('completed'); btn.classList.toggle('checked', d); btn.setAttribute('aria-checked', d?'true':'false'); updateProgress(); });
-    label.addEventListener('input', scheduleSave);
     return li;
   }
-  function renderList(){ listEl.innerHTML=''; (state.items||[]).forEach(it=>listEl.appendChild(createItem(it.text, it.done))); timeEl.textContent = state.elapsedText||'00:00'; updateProgress(); }
+  function renderList(){
+    listEl.innerHTML='';
+    (state.items||[]).forEach((it,idx)=>listEl.appendChild(createItemElement(it, idx)));
+    timeEl.textContent = state.elapsedText||'00:00'; updateProgress();
+  }
   function renderArchivedOnly(){
-    archList.innerHTML=''; (state.archived||[]).forEach((txt,i)=>{ const li=document.createElement('li'); li.className='arch-item'; const span=document.createElement('div'); span.textContent=txt;
-      const bR=document.createElement('button'); bR.className='ghost'; bR.textContent='Restaurar'; bR.addEventListener('click', ()=>{ state.items.push({text:txt,done:false}); state.archived.splice(i,1); renderList(); renderArchivedOnly(); });
-      const bD=document.createElement('button'); bD.className='danger'; bD.textContent='Eliminar'; bD.addEventListener('click', ()=>{ state.archived.splice(i,1); renderArchivedOnly(); scheduleSave(); });
-      li.append(span,bR,bD); archList.appendChild(li); });
-    archCount.textContent=`(${state.archived?.length||0})`; scheduleSave();
+    archList.innerHTML=''; (state.archived||[]).forEach((txt,i)=>{
+      const li=document.createElement('li'); li.className='arch-item'; const span=document.createElement('div'); span.textContent=txt;
+      const bR=document.createElement('button'); bR.className='ghost'; bR.textContent='Restaurar';
+      const bD=document.createElement('button'); bD.className='danger'; bD.textContent='Eliminar';
+      bR.addEventListener('click', ()=>{ state.items.push({text:txt,done:false}); state.archived.splice(i,1); renderList(); renderArchivedOnly(); scheduleSave(); });
+      bD.addEventListener('click', ()=>{ state.archived.splice(i,1); renderArchivedOnly(); scheduleSave(); });
+      li.append(span,bR,bD); archList.appendChild(li);
+    });
+    archCount.textContent=`(${state.archived?.length||0})`;
   }
   function renderTrashOnly(){
-    trashList.innerHTML=''; (state.trash||[]).forEach((txt,i)=>{ const li=document.createElement('li'); li.className='trash-item'; const span=document.createElement('div'); span.textContent=txt;
-      const bR=document.createElement('button'); bR.className='ghost'; bR.textContent='Restaurar'; bR.addEventListener('click', ()=>{ state.items.push({text:txt,done:false}); state.trash.splice(i,1); renderList(); renderTrashOnly(); });
-      const bD=document.createElement('button'); bD.className='danger'; bD.textContent='Eliminar'; bD.addEventListener('click', ()=>{ state.trash.splice(i,1); renderTrashOnly(); scheduleSave(); });
-      li.append(span,bR,bD); trashList.appendChild(li); });
-    trashCount.textContent=`(${state.trash?.length||0})`; scheduleSave();
+    trashList.innerHTML=''; (state.trash||[]).forEach((txt,i)=>{
+      const li=document.createElement('li'); li.className='trash-item'; const span=document.createElement('div'); span.textContent=txt;
+      const bR=document.createElement('button'); bR.className='ghost'; bR.textContent='Restaurar';
+      const bD=document.createElement('button'); bD.className='danger'; bD.textContent='Eliminar';
+      bR.addEventListener('click', ()=>{ state.items.push({text:txt,done:false}); state.trash.splice(i,1); renderList(); renderTrashOnly(); scheduleSave(); });
+      bD.addEventListener('click', ()=>{ state.trash.splice(i,1); renderTrashOnly(); scheduleSave(); });
+      li.append(span,bR,bD); trashList.appendChild(li);
+    });
+    trashCount.textContent=`(${state.trash?.length||0})`;
   }
   function renderHistory(){
     const groups={}; (state.history||[]).forEach((s,idx)=>{ (groups[s.week] ||= []).push({s,idx}); });
     historyGroups.innerHTML=''; const weeks=Object.keys(groups); document.querySelector('#histCount').textContent=`(${state.history?.length||0})`;
-    weeks.forEach(wk=>{ const wrap=document.createElement('div'); const title=document.createElement('div'); title.style.marginTop='10px'; title.innerHTML=`<strong>Semana ${wk}</strong>`; wrap.appendChild(title);
+    weeks.forEach(wk=>{
+      const wrap=document.createElement('div'); const title=document.createElement('div'); title.style.marginTop='10px'; title.innerHTML=`<strong>Semana ${wk}</strong>`; wrap.appendChild(title);
       const ul=document.createElement('ul'); ul.className='list-reset';
-      groups[wk].forEach(({s,idx})=>{ const li=document.createElement('li'); li.className='hist-item';
+      groups[wk].forEach(({s,idx})=>{
+        const li=document.createElement('li'); li.className='hist-item';
         const label=document.createElement('div'); label.innerHTML=`<strong>${s.date}</strong> — ${s.items.length} tareas, tiempo ${s.elapsed}`;
-        const bDL=document.createElement('button'); bDL.className='ghost'; bDL.textContent='Descargar TXT'; bDL.addEventListener('click', ()=>downloadHistoryTxt(idx));
-        const bDel=document.createElement('button'); bDel.className='danger'; bDel.textContent='Eliminar'; bDel.addEventListener('click', ()=>{ if(confirm('¿Eliminar esta jornada del historial?')) { state.history.splice(idx,1); renderHistory(); scheduleSave(); } });
-        li.append(label,bDL,bDel); ul.appendChild(li); });
-      wrap.appendChild(ul); historyGroups.appendChild(wrap); });
+        const bDL=document.createElement('button'); bDL.className='ghost'; bDL.textContent='Descargar TXT';
+        const bDel=document.createElement('button'); bDel.className='danger'; bDel.textContent='Eliminar';
+        bDL.addEventListener('click', ()=>downloadHistoryTxt(idx));
+        bDel.addEventListener('click', ()=>{ if(confirm('¿Eliminar esta jornada del historial?')) { state.history.splice(idx,1); renderHistory(); scheduleSave(); } });
+        li.append(label,bDL,bDel); ul.appendChild(li);
+      });
+      wrap.appendChild(ul); historyGroups.appendChild(wrap);
+    });
   }
   function renderAll(){ renderList(); renderArchivedOnly(); renderTrashOnly(); renderHistory(); }
 
+  // ---- TIMER
   let started=false, startAt=0, ticker=null; let cdActive=false, cdEndAt=0;
   function tick(){
-    if(cdActive){ const left=Math.max(0, cdEndAt - Date.now()); timeEl.textContent=mmss(left); if(left<=0){ stopCountdown(); const total=listEl.querySelectorAll('.item').length; const done=listEl.querySelectorAll('.item.completed').length; if(total>0 && done===total){ finish(); alert('⏱️ Cuenta atrás finalizada. Jornada guardada en Historial.'); } else { alert('⏱️ Cuenta atrás finalizada. Aún hay ítems pendientes.'); } } }
+    if(cdActive){ const left=Math.max(0, cdEndAt - Date.now()); timeEl.textContent=mmss(left); if(left<=0){ stopCountdown(); const total=state.items.length; const done=state.items.filter(i=>i.done).length; if(total>0 && done===total){ finish(); alert('⏱️ Cuenta atrás finalizada. Jornada guardada en Historial.'); } else { alert('⏱️ Cuenta atrás finalizada. Aún hay ítems pendientes.'); } } }
     else if(started){ timeEl.textContent=mmss(Date.now()-startAt); }
   }
   function ensureTicker(){ if(!ticker) ticker=setInterval(tick,250); }
-  function start(){ if(started) return; started=true; startAt=Date.now(); ensureTicker(); tick(); btnStart.disabled=true; scheduleSave(); }
+  function start(){ if(started) return; started=true; startAt=Date.now(); ensureTicker(); tick(); btnStart.disabled=true; }
   function startCountdown(){ const mins=Math.max(1, Math.min(600, Number(cdMinutesInput.value)||25)); cdEndAt=Date.now()+mins*60*1000; cdActive=true; ensureTicker(); tick(); btnStartCD.disabled=true; btnResetCD.disabled=false; if(!started){ start(); } }
-  function stopCountdown(){ cdActive=false; btnStartCD.disabled=false; btnResetCD.disabled=false; scheduleSave(); }
-  function resetCountdown(){ stopCountdown(); if(ticker){ clearInterval(ticker); ticker=null; } started=false; startAt=0; btnStart.disabled=false; timeEl.textContent='00:00'; scheduleSave(); }
+  function stopCountdown(){ cdActive=false; btnStartCD.disabled=false; btnResetCD.disabled=false; }
+  function resetCountdown(){ stopCountdown(); if(ticker){ clearInterval(ticker); ticker=null; } started=false; startAt=0; btnStart.disabled=false; timeEl.textContent='00:00'; }
   function isoDate(d=new Date()){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
   function weekKey(d=new Date()){ const dt=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const weekNo=Math.ceil((((dt-yearStart)/86400000)+1)/7); return `${dt.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`; }
   function finish(){ if(ticker){ clearInterval(ticker); ticker=null; } cdActive=false; btnStartCD.disabled=false; btnResetCD.disabled=true; const elapsed=timeEl.textContent.trim();
-    const items=[...listEl.querySelectorAll('.item')].map(li=>({ text: li.querySelector('.item__label').textContent.trim(), done: li.classList.contains('completed') }));
-    const session={ date: isoDate(new Date()), week: weekKey(new Date()), elapsed, items, archived:[...(state.archived||[])] };
+    const session={ date: isoDate(new Date()), week: weekKey(new Date()), elapsed, items: JSON.parse(JSON.stringify(state.items)), archived:[...(state.archived||[])] };
     state.history = state.history||[]; state.history.unshift(session); started=false; startAt=0; btnStart.disabled=false; renderHistory(); scheduleSave(); }
 
+  // ---- TXT
   function downloadHistoryTxt(idx){
     const s=(state.history||[])[idx]; if(!s) return;
     const lines=[]; lines.push(`DOSALA CheckList — Jornada ${s.date} (Semana ${s.week})`); lines.push(`Usuario: ${usernameEl.textContent.trim()||'Usuario'}`); lines.push(`Tiempo: ${s.elapsed}`); lines.push(''); lines.push('Tareas:');
@@ -301,21 +337,30 @@
     const blob=new Blob([lines.join('\r\n')+'\r\n'], {type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`DOSALA_Jornada_${s.date}.txt`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500);
   }
   function downloadTXT(){
-    const items=[...listEl.querySelectorAll('.item')]; if(!items.length) return;
     const lines=[]; const nowIso=isoDate(new Date()); const displayName=usernameEl.textContent.trim()||'Invitado';
     lines.push(`DOSALA CheckList — ${nowIso}`); lines.push(`Usuario: ${displayName}`); lines.push(`Tiempo actual: ${timeEl.textContent.trim()}`); lines.push(''); lines.push('Tareas actuales:');
-    items.forEach((li,idx)=>{ const txt=li.querySelector('.item__label').textContent.trim(); const mark=li.classList.contains('completed')?'[X]':'[ ]'; lines.push(`${String(idx+1).padStart(2,'0')} ${mark} ${txt}`); });
+    state.items.forEach((it,idx)=>{ const mark=it.done?'[X]':'[ ]'; lines.push(`${String(idx+1).padStart(2,'0')} ${mark} ${it.text}`); });
     const archived=(state.archived||[]); if(archived.length){ lines.push(''); lines.push('Pospuestos (archivados):'); archived.forEach(a=>lines.push(`- ${a}`)); }
     const blob=new Blob([lines.join('\r\n')+'\r\n'], {type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`DOSALA_CheckList_${nowIso}.txt`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),500);
   }
 
-  btnAdd.addEventListener('click', ()=>{ state.items.push({text:'Nuevo ítem…',done:false}); renderList(); });
+  // ---- ACCIONES
+  btnAdd.addEventListener('click', ()=>{ syncFromDOM(); state.items.push({text:'Nuevo ítem…',done:false}); renderList(); scheduleSave(); });
   btnStart.addEventListener('click', start);
   btnFinish.addEventListener('click', finish);
   btnTxt.addEventListener('click', downloadTXT);
   btnStartCD.addEventListener('click', startCountdown);
   btnResetCD.addEventListener('click', resetCountdown);
-  btnEmptyTrash.addEventListener('click', ()=>{ if(confirm('¿Vaciar la papelera definitivamente? Esta acción no se puede deshacer.')){ state.trash=[]; renderTrashOnly(); } });
+  btnEmptyTrash.addEventListener('click', ()=>{ if(confirm('¿Vaciar la papelera definitivamente? Esta acción no se puede deshacer.')){ state.trash=[]; renderTrashOnly(); scheduleSave(); } });
+  btnSaveNow.addEventListener('click', saveNow);
+
+  // ---- LOGIN/CARGA
+  function pickNewest(remote, local){
+    if(remote && local){
+      return (Number(remote.lastUpdated||0) >= Number(local.lastUpdated||0)) ? remote : local;
+    }
+    return remote || local || null;
+  }
 
   async function doLogin(){
     loginMsg.textContent='';
@@ -325,24 +370,26 @@
       const cred=await signInWithEmailAndPassword(auth, email, pass);
       if(!cred.user.displayName){ await updateProfile(cred.user, { displayName: name }); }
       if ('serviceWorker' in navigator) { try { await navigator.serviceWorker.register('./service-worker.js'); } catch(e){} }
+      let local = null; const raw = localStorage.getItem(lsKey(cred.user.uid)); if(raw){ try{ local = JSON.parse(raw); }catch{} }
+      let remote = null; try{ const snap = await getDoc(doc(db, 'users', cred.user.uid)); if(snap.exists()) remote = snap.data(); }catch{}
+      const chosen = pickNewest(remote, local);
+      if(chosen){ state = { items:[], archived:[], trash:[], history:[], elapsedText:'00:00', lastUpdated:0, ...chosen }; }
+      renderAll();
+      saveBadge.textContent = 'Listo';
     }catch(e){
-      console.error(e);
       loginMsg.textContent='Error de acceso: ' + (e?.code || e?.message || e);
     }
   }
   btnLogin.addEventListener('click', doLogin);
   loginPass.addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 
-  onAuthStateChanged(auth, async (user)=>{
+  onAuthStateChanged(auth, (user)=>{
     if(user){
       usernameEl.textContent = user.displayName || (user.email?.split('@')[0]) || 'Usuario';
       login.style.display='none'; appScreen.style.display='';
-      await loadStateOnce();
-      subscribeUserDoc();
     }else{
       appScreen.style.display='none'; login.style.display='';
       loginPass.value=''; loginMsg.textContent='';
-      if (unsubscribeUserDoc){ unsubscribeUserDoc(); unsubscribeUserDoc=null; }
     }
   });
   document.querySelector('#btnLogout').addEventListener('click', async ()=>{ await signOut(auth); });

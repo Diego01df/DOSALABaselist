@@ -1,37 +1,19 @@
-# DOSALA CheckList (Sync + PWA)
+# DOSALA CheckList — Dual Save (Auto + Manual)
 
-App de checklist con **autosave** en Firestore, **offline** (PWA) y sincronización entre dispositivos para dos usuarios (Diego y Chabeli).
+- Corrige la sobre-escritura de ítems al agregar nuevos.
+- Doble guardado: auto (Firestore + localStorage) y manual (botón “Guardar ahora”).
+- En login, carga la versión más reciente (nube vs local) usando `lastUpdated`.
 
-## ✅ Qué incluye
-- Login (selector Diego / Chabeli) con Email/Password de Firebase.
-- Guardado **automático** de cada cambio en **Firestore** y copia local en `localStorage`.
-- Recupera automáticamente el último estado al iniciar sesión desde cualquier dispositivo.
-- **PWA**: instalable y usable **offline** (Service Worker + caché).
-- Preparado para **GitHub Pages**: `https://diego01df.github.io/DOSALABaselist/`
+## Despliegue en GitHub Pages
+1) Sube a la **raíz** del repo: `index.html`, `manifest.json`, `service-worker.js`, carpeta `icons/`.
+2) Settings → Pages → main / root.
+3) Abre tu sitio y recarga con Ctrl+F5.
 
-## 🚀 Cómo subirlo a GitHub Pages
-1. Entra al repo **DOSALABaselist** → **Add file → Upload files**.
-2. Sube estos archivos a la **raíz** del repo:
-   - `index.html`
-   - `manifest.json`
-   - `service-worker.js`
-   - carpeta `icons/` (con `icon-192.png` y `icon-512.png`)
-   - `README.md`
-3. Ve a **Settings → Pages** y verifica:
-   - Source: **Deploy from a branch**
-   - Branch: **main** / Folder: **/(root)**
-4. Visita: https://diego01df.github.io/DOSALABaselist/  
-5. Presiona **Ctrl+F5** (recarga dura) para limpiar caché del SW.
-
-## 🛠️ Firebase necesario
-- Proyecto: **dosalachecklist**
-- Authentication → **Email/Password**: **Enable**.
-- Authentication → **Users**: crea
-  - `yosoyelpintor@gmail.com`
-  - `ch.hernandezflores@gmail.com`
-- Authentication → **Authorized domains**: agrega `localhost` y `diego01df.github.io`.
-- Firestore Database → **Create database** (modo **Production**).  
-- Reglas mínimas:
+## Firebase
+- Proyecto: `dosalachecklist`
+- Auth Email/Password habilitado y usuarios creados (Diego / Chabeli).
+- Authorized domains: `localhost`, `diego01df.github.io`.
+- Reglas mínimas Firestore:
 ```
 rules_version = '2';
 service cloud.firestore {
@@ -42,14 +24,3 @@ service cloud.firestore {
   }
 }
 ```
-
-## 🧪 Cómo probar que sincroniza
-1. Inicia sesión con Diego o Chabeli.
-2. Agrega o completa algunos ítems y espera 2–3 s.
-3. Abre **Firestore Database → users/**: verás un documento (UID) con los campos `items`, `archived`, `trash`, `history`, `elapsedText`, `lastUpdated`.
-4. En otro dispositivo/navegador, entra con el mismo usuario y verás los mismos datos.
-
-## ❗Notas
-- El **Service Worker** puede cachear versiones antiguas. Si actualizas archivos, usa **Ctrl+F5** o en **Application → Service Workers → Unregister**.
-- Si ves `auth/unauthorized-domain`, agrega tu dominio de Pages en **Authorized domains**.
-- Si ves `auth/operation-not-allowed`, habilita Email/Password en **Sign-in method**.
